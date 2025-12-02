@@ -89,14 +89,14 @@ pcr_df = all_data['pcr_estimate']
 
 # ----------------------------- 指标计算函数 -----------------------------
 def calculate_technical_indicators(df):
-    """计算技术指标"""
+    """计算技术指标（使用pandas，无需TA-Lib）"""
     df = df.copy()
     close = df['Close']
 
-    # 移动平均线
-    df['MA_50'] = talib.SMA(close, timeperiod=50)
-    df['MA_100'] = talib.SMA(close, timeperiod=100)
-    df['MA_200'] = talib.SMA(close, timeperiod=200)
+    # 使用 pandas 计算移动平均线
+    df['MA_50'] = close.rolling(window=50).mean()
+    df['MA_100'] = close.rolling(window=100).mean()
+    df['MA_200'] = close.rolling(window=200).mean()
 
     # 价格偏离度 (%)
     df['Dev_50'] = (close / df['MA_50'] - 1) * 100
@@ -106,11 +106,15 @@ def calculate_technical_indicators(df):
     # 短期动量 (5日收益率)
     df['Momentum_5D'] = close.pct_change(5) * 100
 
-    # ATR (平均真实波幅) 用于衡量波动性
-    df['ATR'] = talib.ATR(df['High'], df['Low'], close, timeperiod=14)
+    # 使用价格的滚动标准差来近似衡量波动性，替代ATR
+    df['Volatility'] = close.rolling(window=14).std()
 
-    # RSI (相对强弱指数)
-    df['RSI'] = talib.RSI(close, timeperiod=14)
+    # 使用价格变化和滚动最大/最小值计算一个简单的RSI近似，替代talib.RSI
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
 
     return df
 
@@ -382,4 +386,5 @@ st.caption("""
 - 垃圾债利差使用HYG/TLT比率变化代理；收益率曲线为模拟数据，真实应用中需接入FRED API。
 - Put/Call Ratio为基于VIX的估算值。
 - **本仪表板仅为技术分析工具，不构成任何投资建议。市场有风险，决策需谨慎。**
+
 """)
